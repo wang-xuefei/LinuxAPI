@@ -10,5 +10,5 @@
 
 ## automake的构建
 
-1. 创建configur .ac
+1. 创建configur.ac
 
