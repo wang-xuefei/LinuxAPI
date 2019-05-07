@@ -30,7 +30,7 @@ open()调用既能打开一个已经存在的文件，也能创建并打开一�
 #include <sys/stat.h>
 #include <fcntl.h>
 int open(const char *pathname, int flags, .../* mode_t mode */);
-				returns file descriptor on success, or -1 on error.
+											returns file descriptor on success, or -1 on error.
 ```
 
 要打开的文件由参数pathname来标识。如果pathname是一个符号链接，会对其进行街引用。如果调用成功，open()将返回一个文件描述符，用于在后续函数调用中指代该文件。如果发生错误，则返回-1，并将errno设置为相应的错误标志。
@@ -43,4 +43,5 @@ int open(const char *pathname, int flags, .../* mode_t mode */);
 | O_WRONLY | 以只写的方式打开 |
 |  O_RDWR  | 以读写的方式打开 |
 
-当调用open()
+当调用open() 创建新文件时，位掩码参数mode指定了文件的访问权限。(SUSv3规定， mode的数据类型mode_t属于整数类型)如果open()并未指定O_CREAT标志，则可以省略mode参数。
+
