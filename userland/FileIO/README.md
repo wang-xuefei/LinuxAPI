@@ -43,4 +43,8 @@ int open(const char *pathname, int flags, .../* mode_t mode */);
 | O_WRONLY | 以只写的方式打开 |
 |  O_RDWR  | 以读写的方式打开 |
 
-当调用open()
+当调用open()创建新文件时，位掩码参数mode指定了文件的访问权限。(SUSv3规定，mode的数据类型mode_t属于整数类型)如果open()并未指定O_CREAT标志，则可以省略mode参数。
+
+### open()调用锁返回的文件描述符数值
+
+SUSv3规定，如果调用open()成功，必须保证他的返回值为进程未使用文件描述符中数值最小者。可以利用这个特点以特定文件描述符打开一个文件。例如，如下代码序列就会
