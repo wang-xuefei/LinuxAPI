@@ -174,13 +174,140 @@ SUSv3规定，如果调用open()成功，必须保证他的返回值为进程未
 
 ## [0x03]creat()系统调用
 
+在早期的UNIX实现中，open()只有两个参数，无法创建新文件，而是使用creat()系统调用来创建并打开一个新文件。
+
+```c
+#include <fcntl.h>
+
+int creat(const char *pathname, mode_t mode);
+							Returns file descriptor, or -1 on error.
+```
+
+creat()系统调用根据pathname参数创建并打开一个文件，若文件已存在，则打开文件，并清空文件内容，将其长度清0。creat()返回一文件描述符，供后续系统调用使用。creat()系统调用等价于如下open()调用：
+
+`fd = open(pathname, O_WRONLY|O_CREAT|O_TRUNC, mode);`
+
+尽管creat()在一些老旧程序的代码中还时有所见，但由于open()的flags参数能对文件打开方式提供更多控制（例如：可以指定O_RDWR标志，代替O_WRONLY标志），对creat()的使用现在已不多见。
+
 ## [0x04]读取文件内容：read()
+
+read()系统调用从文件描述符fd所指代的打开文件中读取数据。
+
+```c
+#include <unistd.h>
+
+ssize_t read(int fd, void *buf, size_t count);
+					Returns number of bytes read, 0 on EOF, or -1 on error
+```
+
+系统调用不会分配内存缓冲区用以返回信息给调用者。所以，必须预先分配大小合适的缓冲区并将缓冲区指针传递给系统调用。与此相反，有些库函数却会分配内存缓冲区用以返回信息给调用者。
+
+如果read()调用成功，将返回实际读取的字节数，如果遇到文件结束（EOF）则返回0，如果出现错误则返回-1。ssize_t数据类型属于有符号的整数类型，用来存放（读取的）字节数或-1（表示错误）。
+
+一次read()调用所读取的字节数可以小于请求的字节数。对于普通文件而言，这有可能是因为当前读取位置靠近文件尾部。
+
+当read()应用于其他文件类型时，比如管道、FIFO、socket或者终端，在不同环境下也会出现read()调用读取的字节数小于请求字节数的情况。例如，默认情况下从终端读取字符，一遇到换行符（\n），read()调用就会结束。在后续章节论及其他类型文件时，会再次针对这些情况进行探讨。
+
+使用read()从终端读取一连串字符，我们也许期望下面的代码会起作用：
+
+```c
+#define MAX_READ 20
+char buffer[MAX_READ];
+
+if(read(STDIN_FILENO, buffer, MAX_READ) == -1)
+  errExit("read");
+printf("the input data was: %s\n", buffer);
+```
+
+这段代码的输出可能会很奇怪，因为输出结果除了实际输入的字符串外还会包括其他字符。这是因为read()调用没有在printf()函数打印的字符串尾部添加一个表示终止的空字符。思索片刻就会意识到这肯定是症结所在，因为read()能够从文件中读取任意序列的字节。有些情况下，输入信息可能是文本数据，但在其他情况下，又可能是二进制整数或者二进制形式的C语言数据结构。read()无从区分这些数据，故而也无法遵从C语言对字符串处理的约定，在字符串尾部追加标识字符串结束的空字符。如果输入缓冲区的结尾处需要一个表示终止的空字符，必须显式追加。
+
+```c
+char buffer[MAX_READ + 1];
+size_t numRead;
+
+numRead = read(STDIN_FILENO, buffer, MAX_READ);
+if(numRead == -1)
+  errExit("read");
+
+buffer[numRead] = '\0';
+printf("the input data was:%s\n", buffer);
+```
+
+由于表示字符串终止的空字符需要一个字节的内存，所以缓冲区的大小至少要比预计读取的最大字符串长度多出1个字节。
 
 ## [0x05]数据写入文件：write()
 
+write()系统调用将数据写入一个已打开的文件中。
+
+```c
+#include <unistd.h>
+
+ssize_t write(int fd, void *buffer, size_t count);
+						Returns number of bytes writen, or -1 on error.
+```
+
+write()调用的参数含义与read()调用相类似。buffer参数为要写入文件中数据的内存地址，count参数为欲从buffer写入文件的数据字节数，fd参数为一文件描述符，指代数据要写入的文件。
+
+如果write()调用成功，将返回实际写入文件的字节数，该返回值可能小于count参数值。这被称为“部分写”。对磁盘文件来说，造成“部分写”的原因可能是由于磁盘已满，或是因为进程资源对文件大小的限制。
+
+对磁盘文件执行I/O操作时，write()调用成功并不能保证数据已经写入磁盘。因为为了减少磁盘活动量和加快write()系统调用，内核会缓存磁盘的I/O操作，第13章将会详加介绍。
+
 ## [0x06]关闭文件：close()
 
+close()系统调用关闭一个打开的文件描述符，并将其释放回调用进程，供该进程继续使用。当一进程终止时，将自动关闭其已打开的所有文件描述符。
+
+```c
+#include <unistd.h>
+
+int close(int fd);
+```
+
+显式关闭不再需要的文件描述符往往是良好的编程习惯，会使代码在后续修改时更具可读性，也更可靠。进而言之，文件描述符属于有限资源，因此文件描述符关闭失败可能会导致一个进程将文件描述符资源消耗殆尽。在编写需要长期运行并处理大量文件的程序时，比如shell或者网络服务器软件，需要特别加以关注。
+
+像其他所有系统调用一样，应对close()的调用进行错误检查，如下所示：
+
+```c
+if(close(fd) == -1)
+  errExit("close");
+```
+
+上述代码能够捕获的错误有：企图关闭一个未打开的文件描述符，或者两次关闭同一文件描述符，也能捕获特定文件系统在关闭操作中诊断出的错误条件。
+
+针对特定文件系统的错误，NFS（网络文件系统）就是一例。如果NFS出现提交失败，这意味着数据没有抵达远程磁盘，随之将这一错误作为close()调用失败的原因传递给应用系统。
+
 ## [0x07]改变文件偏移量：lseek()
+
+对于每个打开的文件，系统内核会记录其文件偏移量，有时也将文件偏移量称为读写偏移量或指针。文件偏移量是指执行下一个read()或write()操作的文件起始位置，会以相对于文件头部起始点的文件当前位置来表示。文件第一个字节的偏移量为0。
+
+文件打开时，会将文件偏移量设置为指向文件开始，以后每次read()或write()调用将自动对其进行调整，以指向已读或已写数据后的下一字节。因此，连续的read()和write()调用将按顺序递进，对文件进行操作。
+
+针对文件描述符fd参数所指代的已打开文件，lseek()系统调用依照offset和whence参数值调整该文件的偏移量。
+
+```c
+#include <sys/types.h>
+#include <unistd.h>
+
+off_t lseek(int fd, off_t offset, int whence);
+					Returns new file offset if successful, or -1 on error.
+```
+
+offset参数指定了一个以字节为单位的数值。（SUSv3规定off_t数据类型为有符号整型数。）whence参数则表明应参照哪个基点来解释offset参数，应为下列其中之一：
+
+- SEEK_SET
+
+将文件偏移量设置为从文件头部起始点开始的offset个字节。
+
+- SEEK_CUR
+
+相对于当前文件偏移量，将文件偏移量调整offset个字节 。
+
+- SEEK_END
+
+将文件偏移量设置为起始于文件尾部的offset个字节。也就是说，offset参数应该从文件最后一个字节之后的下一个字节算起。
+
+![1557212280270](../../images/1557212280270.jpg)
+
+
 
 ## [0x08]通用I/O模型以外的操作：ioctl()
 
