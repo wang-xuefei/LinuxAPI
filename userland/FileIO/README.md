@@ -24,3 +24,23 @@ UNIX I/O模型的显著特点之一是其输入输出的通用性概念。这意
 
 ## [0x02]打开一个文件：open()
 
+open()调用既能打开一个已经存在的文件，也能创建并打开一个新文件。
+
+```
+#include <sys/stat.h>
+#include <fcntl.h>
+int open(const char *pathname, int flags, .../* mode_t mode */);
+											returns file descriptor on success, or -1 on error.
+```
+
+要打开的文件由参数pathname来标识。如果pathname是一个符号链接，会对其进行街引用。如果调用成功，open()将返回一个文件描述符，用于在后续函数调用中指代该文件。如果发生错误，则返回-1，并将errno设置为相应的错误标志。
+
+参数flags是位掩码，用于指定文件的访问模式，可选择下表所示的常量之一。(早期的UNIX实现中使用数字0、1、2，而不是下表中列的常量名称。大多数现代UNIX实现将这些常量定义为上述相应数字。由此可见，O_RDWR并不等同于O_RDONLY | O_WRONLY，后者组合属于逻辑错误。
+
+| 访问模式 |       描述       |
+| :------: | :--------------: |
+| O_RDONLY | 以只读的方式打开 |
+| O_WRONLY | 以只写的方式打开 |
+|  O_RDWR  | 以读写的方式打开 |
+
+当调用open()
