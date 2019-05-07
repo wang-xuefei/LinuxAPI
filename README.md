@@ -1,15 +1,8 @@
-# Linux操作系统API说明与示例
+# 大话LinuxAPI
 
-## 用户态API
+## [userland]用户态API
 
-- 文件操作
-- 进程
-- 线程
-- 信号
-
-## 内核态API
-
-- 自旋锁
+## [kernel]内核态API
 
 ## automake的构建
 
